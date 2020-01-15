@@ -14,7 +14,7 @@ class CameraViewController: UIViewController {
     private lazy var captureSession = AVCaptureSession()
     private lazy var fileOutput = AVCaptureMovieFileOutput()
     private var player: AVPlayer?
-    private var playerLayer: AVPlayerLayer
+    private var playerLayer: AVPlayerLayer?
 
     @IBOutlet var recordButton: UIButton!
     @IBOutlet var cameraView: CameraPreviewView!
@@ -38,6 +38,12 @@ class CameraViewController: UIViewController {
 
         fatalError("No cameras on the device, or you are running on the simulator (not supported)")
     }
+    private var bestAudio: AVCaptureDevice {
+        if let device = AVCaptureDevice.default(for: .audio) {
+            return device
+        }
+        fatalError("mic is borked!")
+    }
 
     // MARK: - View Lifecycle
 
@@ -46,9 +52,10 @@ class CameraViewController: UIViewController {
 
 		// Resize camera preview to fill the entire screen
 		cameraView.videoPlayerView.videoGravity = .resizeAspectFill
+
         setUpCamera()
 
-        // TODO: add tap gesture to replay video (repeat loop?)
+        // add tap gesture to replay video (repeat loop?)
         let tapGesture = UITapGestureRecognizer(
             target: self,
             action: #selector(viewTapped(_:)))
@@ -94,17 +101,18 @@ class CameraViewController: UIViewController {
 
     func playMovie(url: URL) {
         player = AVPlayer(url: url)
+        
         playerLayer = AVPlayerLayer(player: player)
 
         // TODO: customize rectangle bounds
-        playerLayer.frame = view.bounds
+        playerLayer?.frame = view.bounds
         var topRect = view.bounds
         topRect.size.height /= 4
         topRect.size.width /= 4
         topRect.origin.y = view.layoutMargins.top
-        playerLayer.frame = topRect
+        playerLayer?.frame = topRect
 
-        view.layer.addSublayer(playerLayer)
+        view.layer.addSublayer(playerLayer!)
         player?.play()
         // TODO: add delegate and repeat video at end
     }
@@ -137,7 +145,16 @@ class CameraViewController: UIViewController {
         if captureSession.canSetSessionPreset(sessionPreset) {
             captureSession.sessionPreset = sessionPreset
         }
-        // TODO: audio input
+        // - audio input
+        let mic = bestAudio
+        guard
+            let audioInput = try? AVCaptureDeviceInput(device: mic),
+            captureSession.canAddInput(audioInput)
+            else {
+                fatalError("can't add mic device!")
+        }
+        captureSession.addInput(audioInput)
+
         // - video output (movie recording)
         guard captureSession.canAddOutput(fileOutput) else {
             fatalError("can't set up the file output for movie")
