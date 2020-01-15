@@ -12,16 +12,25 @@ import AVFoundation
 class CameraViewController: UIViewController {
 
     private lazy var captureSession = AVCaptureSession()
+    private lazy var fileOutput = AVCaptureMovieFileOutput()
 
     @IBOutlet var recordButton: UIButton!
     @IBOutlet var cameraView: CameraPreviewView!
 
     private var bestCamera: AVCaptureDevice {
-        if let device = AVCaptureDevice.default(.builtInUltraWideCamera, for: .video, position: .back) {
+        if let device = AVCaptureDevice.default(
+            .builtInUltraWideCamera,
+            for: .video,
+            position: .back)
+        {
             return device
         }
         // fallback camera
-        if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) {
+        if let device = AVCaptureDevice.default(
+            .builtInWideAngleCamera,
+            for: .video,
+            position: .back)
+        {
             return device
         }
 
@@ -36,6 +45,8 @@ class CameraViewController: UIViewController {
 		// Resize camera preview to fill the entire screen
 		cameraView.videoPlayerView.videoGravity = .resizeAspectFill
         setUpCamera()
+
+        // TODO: add tap gesture to replay video (repeat loop?)
 	}
 
     override func viewDidAppear(_ animated: Bool) {
@@ -48,11 +59,31 @@ class CameraViewController: UIViewController {
         captureSession.stopRunning()
     }
 
+    // MARK: - Actions
+
     @IBAction func recordButtonPressed(_ sender: Any) {
-        recordButton.isSelected.toggle()
+        toggleRecording()
 	}
 
     // MARK: - Helper Methods
+
+    func toggleRecording() {
+        if fileOutput.isRecording {
+            fileOutput.stopRecording()
+        } else {
+            fileOutput.startRecording(
+                to: newRecordingURL(),
+                recordingDelegate: self)
+        }
+    }
+
+    func playMovie(url: URL) {
+
+    }
+
+    private func updateViews() {
+        recordButton.isSelected = fileOutput.isRecording
+    }
 
     private func setUpCamera() {
         // get the best camera
@@ -73,8 +104,12 @@ class CameraViewController: UIViewController {
         if captureSession.canSetSessionPreset(sessionPreset) {
             captureSession.sessionPreset = sessionPreset
         }
-        //  - audio input
-        //  - video output (movie)
+        // TODO: audio input
+        // - video output (movie recording)
+        guard captureSession.canAddOutput(fileOutput) else {
+            fatalError("can't set up the file output for movie")
+        }
+        captureSession.addOutput(fileOutput)
 
         captureSession.commitConfiguration()
         cameraView.session = captureSession
@@ -98,3 +133,28 @@ class CameraViewController: UIViewController {
 	}
 }
 
+// MARK: - Recording Delegate
+
+extension CameraViewController: AVCaptureFileOutputRecordingDelegate {
+    func fileOutput(
+        _ output: AVCaptureFileOutput,
+        didStartRecordingTo fileURL: URL,
+        from connections: [AVCaptureConnection]
+    ) {
+        updateViews()
+    }
+
+    func fileOutput(
+        _ output: AVCaptureFileOutput,
+        didFinishRecordingTo outputFileURL: URL,
+        from connections: [AVCaptureConnection],
+        error: Error?
+    ) {
+        if let error = error {
+            print("Error with video recording: \(error)")
+        }
+        print("finished recording video: \(outputFileURL.path)")
+        updateViews()
+        playMovie(url: outputFileURL)
+    }
+}
