@@ -13,6 +13,8 @@ class CameraViewController: UIViewController {
 
     private lazy var captureSession = AVCaptureSession()
     private lazy var fileOutput = AVCaptureMovieFileOutput()
+    private var player: AVPlayer?
+    private var playerLayer: AVPlayerLayer
 
     @IBOutlet var recordButton: UIButton!
     @IBOutlet var cameraView: CameraPreviewView!
@@ -47,6 +49,10 @@ class CameraViewController: UIViewController {
         setUpCamera()
 
         // TODO: add tap gesture to replay video (repeat loop?)
+        let tapGesture = UITapGestureRecognizer(
+            target: self,
+            action: #selector(viewTapped(_:)))
+        view.addGestureRecognizer(tapGesture)
 	}
 
     override func viewDidAppear(_ animated: Bool) {
@@ -61,7 +67,16 @@ class CameraViewController: UIViewController {
 
     // MARK: - Actions
 
-    @IBAction func recordButtonPressed(_ sender: Any) {
+    @objc
+    private func viewTapped(_ tapGesture: UITapGestureRecognizer) {
+        if tapGesture.state == .ended {
+            print("tap")
+            playMovie()
+        }
+    }
+
+    @IBAction
+    private func recordButtonPressed(_ sender: Any) {
         toggleRecording()
 	}
 
@@ -78,7 +93,25 @@ class CameraViewController: UIViewController {
     }
 
     func playMovie(url: URL) {
+        player = AVPlayer(url: url)
+        playerLayer = AVPlayerLayer(player: player)
 
+        // TODO: customize rectangle bounds
+        playerLayer.frame = view.bounds
+        var topRect = view.bounds
+        topRect.size.height /= 4
+        topRect.size.width /= 4
+        topRect.origin.y = view.layoutMargins.top
+        playerLayer.frame = topRect
+
+        view.layer.addSublayer(playerLayer)
+        player?.play()
+        // TODO: add delegate and repeat video at end
+    }
+
+    func playMovie() {
+        player?.seek(to: .zero)
+        player?.play()
     }
 
     private func updateViews() {
